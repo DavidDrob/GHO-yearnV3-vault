@@ -19,6 +19,18 @@ contract OperationTest is Setup {
         // TODO: add additional check on strat params
     }
 
+    function test_swapGHOForTOI(uint256 _amount) public {
+        uint256 _amount = 200e18;
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+        ERC20 toi = ERC20(tokenAddrs["crvUSD"]);
+
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // TODO: add more asserts
+        assertNotEq(asset.balanceOf(address(strategy)), _amount);
+        assertNotEq(toi.balanceOf(address(strategy)), 0);
+    }
+
     function test_operation(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 

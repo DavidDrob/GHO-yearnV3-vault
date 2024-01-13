@@ -4,8 +4,8 @@ pragma solidity 0.8.18;
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// Import interfaces for many popular DeFi projects, or add your own!
-//import "../interfaces/<protocol>/<Interface>.sol";
+import "./interfaces/uniswap/ISwapRouter.sol";
+import "./interfaces/aave/IGhoToken.sol";
 
 /**
  * The `TokenizedStrategy` variable can be used to retrieve the strategies
@@ -23,10 +23,18 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract Strategy is BaseStrategy {
     using SafeERC20 for ERC20;
 
+    address public constant GHO = 0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f;
+    address public constant TOI = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E; // crvUSD (Ethereum Mainnet)
+
+    ISwapRouter public constant router =
+        ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
     constructor(
         address _asset,
         string memory _name
-    ) BaseStrategy(_asset, _name) {}
+    ) BaseStrategy(_asset, _name) {
+        IGhoToken(GHO).approve(address(router), type(uint256).max);
+    }
 
     /*//////////////////////////////////////////////////////////////
                 NEEDED TO BE OVERRIDDEN BY STRATEGIST
@@ -40,13 +48,27 @@ contract Strategy is BaseStrategy {
      * be entirely permissionless and thus can be sandwiched or otherwise
      * manipulated.
      *
+     * Swaps 50% of GHO for TOI (crvUSD).
+     *
      * @param _amount The amount of 'asset' that the strategy should attempt
      * to deposit in the yield source.
      */
     function _deployFunds(uint256 _amount) internal override {
-        // TODO: implement deposit logic EX:
-        //
-        //      lendingPool.deposit(address(asset), _amount ,0);
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
+            .ExactInputSingleParams({
+                tokenIn: GHO,
+                tokenOut: TOI,
+                fee: 5000, // pool fee 0.5%
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: _amount,
+                amountOutMinimum: 0, // TODO: change in production
+                sqrtPriceLimitX96: 0 // TODO: change in production
+            });
+
+        uint256 toiOut = router.exactInputSingle(params);
+
+        // TODO: deposit into Curve
     }
 
     /**
