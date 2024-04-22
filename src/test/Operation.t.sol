@@ -28,7 +28,7 @@ contract OperationTest is Test, Setup {
         // TODO: add additional check on strat params
     }
 
-    function test_deposit_crv() public {
+    function test_deposit_into_crv() public {
         uint256 _amount = 200e18;
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
         uint256 gaugeBalanceBefore = gauge.balanceOf(address(strategy));
@@ -36,6 +36,7 @@ contract OperationTest is Test, Setup {
         mintAndDepositIntoStrategy(strategy, user, _amount);
 
         assertGt(strategy.balanceOf(user), 0);
+        assertGt(gauge.balanceOf(address(strategy)), 0);
     }
 
     // TODO: fuzz maxLoss

@@ -16,6 +16,7 @@ import "./interfaces/ICurvePool.sol";
 import "./interfaces/convex/IConvex.sol";
 import "./interfaces/convex/IConvexRewards.sol";
 import "./interfaces/IDepositZap.sol";
+import "./interfaces/IGauge.sol";
 
 /**
  * The `TokenizedStrategy` variable can be used to retrieve the strategies
@@ -49,6 +50,8 @@ contract Strategy is BaseStrategy {
         IConvexRewards(0xC25d31c9DFBa32e3609233291772CACB30303338);
     IDepositZap public constant zap =
         IDepositZap(0xA79828DF1850E8a3A3064576f380D90aECDD3359);
+    IGauge public constant gauge =
+        IGauge(0xFc58C946A2D541cfA29Ad8c16FC2994323e34458);
 
     uint256 public constant PID = 213;
 
@@ -59,8 +62,9 @@ contract Strategy is BaseStrategy {
         IGhoToken(gho).approve(address(zap), type(uint256).max);
         IGhoToken(crv).approve(address(zap), type(uint256).max);
         IGhoToken(crvusd).approve(address(zap), type(uint256).max);
-        IGhoToken(address(pool)).approve(address(convex), type(uint256).max);
-        IGhoToken(address(pool)).approve(address(zap), type(uint256).max);
+        ICurvePool(address(pool)).approve(address(convex), type(uint256).max);
+        ICurvePool(address(pool)).approve(address(zap), type(uint256).max);
+        ICurvePool(address(pool)).approve(address(gauge), type(uint256).max);
         IERC20(crv).approve(address(rewardsPool), type(uint256).max);
     }
 
@@ -80,10 +84,6 @@ contract Strategy is BaseStrategy {
      * to deposit in the yield source.
      */
     function _deployFunds(uint256 _amount) internal override {
-        // TODO: implement deposit logic EX:
-        //
-        //      lendingPool.deposit(address(asset), _amount ,0);
-
         // Deposit GHO into crvUSD/GHO pool.
         uint256 _out = zap.add_liquidity(
             address(pool),
@@ -92,8 +92,8 @@ contract Strategy is BaseStrategy {
             address(this)
         );
 
-        // Stake crvUSDGHO LP.
-        bool _staked = convex.deposit(PID, _out, true);
+        // Deposti crvUSDGHO LP into gauge.
+        gauge.deposit(_out, address(this));
     }
 
     /**
