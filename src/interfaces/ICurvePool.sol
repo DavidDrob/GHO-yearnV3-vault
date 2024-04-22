@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-interface ICurvePool {
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+
+interface ICurvePool is IERC20 {
     function get_virtual_price() external view returns (uint256);
 
     function calc_token_amount(
@@ -31,8 +33,6 @@ interface ICurvePool {
         int128 i,
         uint256 _min_amount
     ) external returns (uint256);
-
-    function balanceOf(address) external returns (uint256);
 
     function exchange(
         uint128 i,
