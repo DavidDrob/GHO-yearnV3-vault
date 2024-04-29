@@ -41,31 +41,26 @@ contract Strategy is BaseStrategy {
         0x453CAFf58C6a1E01f7E19Dbf5Fa8382ca8cA3Ec1;
 
     ICurvePool public constant pool =
-        ICurvePool(0x86152dF0a0E321Afb3B0B9C4deb813184F365ADa);
+        ICurvePool(0x635EF0056A597D13863B73825CcA297236578595);
     ICurvePool public constant rewardsPool =
         ICurvePool(0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14);
     IConvex public constant convex =
         IConvex(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
     IConvexRewards public constant convexRewards =
-        IConvexRewards(0xC25d31c9DFBa32e3609233291772CACB30303338);
+        IConvexRewards(0x5eC758f79b96AE74e7F1Ba9583009aFB3fc8eACB);
     IDepositZap public constant zap =
         IDepositZap(0xA79828DF1850E8a3A3064576f380D90aECDD3359);
     IGauge public constant gauge =
-        IGauge(0xFc58C946A2D541cfA29Ad8c16FC2994323e34458);
+        IGauge(0x4717C25df44e280ec5b31aCBd8C194e1eD24efe2);
 
-    uint256 public constant PID = 213;
+    uint256 public constant PID = 335;
 
     constructor(
         address _asset,
         string memory _name
     ) BaseStrategy(_asset, _name) {
-        IGhoToken(gho).approve(address(zap), type(uint256).max);
-        IGhoToken(crv).approve(address(zap), type(uint256).max);
-        IGhoToken(crvusd).approve(address(zap), type(uint256).max);
-        ICurvePool(address(pool)).approve(address(convex), type(uint256).max);
-        ICurvePool(address(pool)).approve(address(zap), type(uint256).max);
-        ICurvePool(address(pool)).approve(address(gauge), type(uint256).max);
-        IERC20(crv).approve(address(rewardsPool), type(uint256).max);
+        IGhoToken(gho).approve(address(pool), type(uint256).max);
+        ICurvePool(pool).approve(address(gauge), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -85,15 +80,13 @@ contract Strategy is BaseStrategy {
      */
     function _deployFunds(uint256 _amount) internal override {
         // Deposit GHO into crvUSD/GHO pool.
-        uint256 _out = zap.add_liquidity(
-            address(pool),
-            [_amount, 0, 0, 0],
-            0,
-            address(this)
-        );
+        uint256[] memory _amounts = new uint256[](2);
+        _amounts[0] = _amount;
 
-        // Deposti crvUSDGHO LP into gauge.
-        gauge.deposit(_out, address(this));
+        uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
+
+        // Deposit crvUSDGHO LP into gauge.
+        gauge.deposit(_lpAmount);
     }
 
     /**

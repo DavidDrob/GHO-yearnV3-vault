@@ -17,13 +17,13 @@ interface ICurvePool is IERC20 {
         bool _is_deposit
     ) external view returns (uint256);
 
-    function add_liqudity(
-        uint256[2] calldata _amounts,
+    function add_liquidity (
+        uint256[] memory _amounts,
         uint256 _min_mint_amount
     ) external returns (uint256);
 
-    function add_liqudity(
-        uint256[2] calldata _amounts,
+    function add_liquidity (
+        uint256[] memory _amounts,
         uint256 _min_mint_amount,
         address receiver
     ) external returns (uint256);

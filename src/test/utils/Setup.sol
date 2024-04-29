@@ -154,10 +154,10 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["CRV"] = 0xD533a949740bb3306d119CC777fa900bA034cd52;
         tokenAddrs[
             "gauge-deposit"
-        ] = 0xFc58C946A2D541cfA29Ad8c16FC2994323e34458;
+        ] = 0x4717C25df44e280ec5b31aCBd8C194e1eD24efe2;
         tokenAddrs[
             "gho-crvUSD-pool"
-        ] = 0x86152dF0a0E321Afb3B0B9C4deb813184F365ADa;
+        ] = 0x635EF0056A597D13863B73825CcA297236578595;
         tokenAddrs[
             "gho-usdt-usdc-balancer-pool"
         ] = 0x8353157092ED8Be69a9DF8F95af097bbF33Cb2aF;

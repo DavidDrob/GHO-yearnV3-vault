@@ -31,7 +31,6 @@ contract OperationTest is Test, Setup {
     function test_deposit_into_crv() public {
         uint256 _amount = 200e18;
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
-        uint256 gaugeBalanceBefore = gauge.balanceOf(address(strategy));
 
         mintAndDepositIntoStrategy(strategy, user, _amount);
 
