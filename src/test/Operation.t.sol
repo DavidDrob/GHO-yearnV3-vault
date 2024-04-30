@@ -72,34 +72,16 @@ contract OperationTest is Test, Setup {
     }
 
     function test_claim_crv() public {
-        address userTwo = makeAddr("userTwo");
-        vm.prank(userTwo);
-        mintAndDepositIntoStrategy(strategy, userTwo, 5_000e18);
-
         uint256 _amount = 20_000e18;
 
-        uint256 crvBefore = IERC20(tokenAddrs["CRV"]).balanceOf(
-            address(strategy)
-        );
-        airdrop(ERC20(tokenAddrs["CRV"]), address(strategy), 50e18);
-
-        vm.prank(user);
         mintAndDepositIntoStrategy(strategy, user, _amount);
 
-        skip(10 days);
-        console.log(gauge.working_balances(address(strategy)));
+        skip(5 days);
 
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
 
-        console.log(profit);
-        console.log(loss);
-
-        // TODO: check convex balance
-        assertGt(
-            IERC20(tokenAddrs["CRV"]).balanceOf(address(strategy)),
-            crvBefore
-        );
+        assertGt(profit, loss);
     }
 
     function test_is_profitable() public {
