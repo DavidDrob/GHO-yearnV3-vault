@@ -43,4 +43,6 @@ interface ICurvePool is IERC20 {
     ) external returns (uint256);
 
     function coins(uint256 index) external returns (address);
+
+    function calc_withdraw_one_coin(uint256 _burn_amount, int128 i) external returns (uint256);
 }

@@ -17,6 +17,12 @@ import "./interfaces/convex/IConvex.sol";
 import "./interfaces/convex/IConvexRewards.sol";
 import "./interfaces/IDepositZap.sol";
 import "./interfaces/IGauge.sol";
+import "./interfaces/IMinter.sol";
+import "./interfaces/ITriCryptoNG.sol";
+
+
+// custom errors
+error NoCRVMinted();
 
 /**
  * The `TokenizedStrategy` variable can be used to retrieve the strategies
@@ -42,8 +48,8 @@ contract Strategy is BaseStrategy {
 
     ICurvePool public constant pool =
         ICurvePool(0x635EF0056A597D13863B73825CcA297236578595);
-    ICurvePool public constant rewardsPool =
-        ICurvePool(0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14);
+    ITriCryptoNG public constant rewardsPool =
+        ITriCryptoNG(0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14);
     IConvex public constant convex =
         IConvex(0xF403C135812408BFbE8713b5A23a04b3D48AAE31);
     IConvexRewards public constant convexRewards =
@@ -52,6 +58,8 @@ contract Strategy is BaseStrategy {
         IDepositZap(0xA79828DF1850E8a3A3064576f380D90aECDD3359);
     IGauge public constant gauge =
         IGauge(0x4717C25df44e280ec5b31aCBd8C194e1eD24efe2);
+    IMinter public constant minter =
+        IMinter(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
 
     uint256 public constant PID = 335;
 
@@ -61,6 +69,8 @@ contract Strategy is BaseStrategy {
     ) BaseStrategy(_asset, _name) {
         IGhoToken(gho).approve(address(pool), type(uint256).max);
         ICurvePool(pool).approve(address(gauge), type(uint256).max);
+        IERC20(crv).approve(address(rewardsPool), type(uint256).max);
+        IERC20(crvusd).approve(address(pool), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -158,55 +168,36 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256 _totalAssets)
     {
-        // TODO: Implement harvesting logic and accurate accounting EX:
-        //
-        //      if(!TokenizedStrategy.isShutdown()) {
-        //          _claimAndSellRewards();
-        //      }
-        //      _totalAssets = aToken.balanceOf(address(this)) + asset.balanceOf(address(this));
-        //
-
         if (!TokenizedStrategy.isShutdown()) {
-            // claim crv rewards
-            bool _claimedSucessfully = convexRewards.getReward();
+            minter.mint(address(gauge));
 
             uint256 dx = IERC20(crv).balanceOf(address(this));
-            console.log(dx);
+            if (dx == 0) revert NoCRVMinted();
+
             uint256 min_dy = 0; // TODO: use get_dy - slippage
+            uint256 _amount = rewardsPool.exchange(2, 0, dx, min_dy);
 
-            // debug
-            address crvAddress = rewardsPool.coins(2);
-            address crvUSDAddress = rewardsPool.coins(0);
-            console.log(crvAddress);
-            console.log(crvUSDAddress);
+            uint256[] memory _amounts = new uint256[](2);
+            _amounts[1] = _amount;
 
-            // swap for crvUSD
-            // debug
-            console.log(
-                IERC20(crv).allowance(address(this), address(rewardsPool)) > dx
-            );
-            uint256 _amount = rewardsPool.exchange(2, 0, dx, min_dy, false);
-            console.log(_amount);
+            uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
 
-            // redeposit crvUSD back into pool
-            uint256 _out = zap.add_liquidity(
-                address(pool),
-                [0, _amount, 0, 0],
-                0,
-                address(this)
-            );
-
-            // Stake crvUSDGHO LP.
-            bool _staked = convex.deposit(PID, _out, true);
+            // Deposit crvUSDGHO LP into gauge.
+            gauge.deposit(_lpAmount);
         }
-        // update total assets
-        _totalAssets = SafeMath.div(
-            SafeMath.mul(
-                IGhoToken(cvxDeposit).balanceOf(address(this)),
-                pool.get_virtual_price()
-            ),
-            1e18
-        );
+
+        uint256 _gaugeBalance = gauge.balanceOf(address(this));
+        uint256 _ghoBalance = IERC20(gho).balanceOf(address(this));
+
+        // `calc_withdraw_one_coin` reverts when `_burn_amount` is zero
+        if (_gaugeBalance == 0) {
+            _totalAssets = _ghoBalance;
+        }
+        else {
+            _totalAssets = 
+                pool.calc_withdraw_one_coin(_gaugeBalance, int128(0)) + 
+                IERC20(gho).balanceOf(address(this));
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
