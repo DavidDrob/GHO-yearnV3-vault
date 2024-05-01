@@ -28,7 +28,7 @@ interface ICurvePool is IERC20 {
         address receiver
     ) external returns (uint256);
 
-    function remove_liqudity_one_coin(
+    function remove_liquidity_one_coin(
         uint256 _token_amount,
         int128 i,
         uint256 _min_amount

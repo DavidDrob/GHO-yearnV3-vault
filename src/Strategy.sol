@@ -23,6 +23,7 @@ import "./interfaces/ITriCryptoNG.sol";
 
 // custom errors
 error NoCRVMinted();
+error ZeroLP();
 
 /**
  * The `TokenizedStrategy` variable can be used to retrieve the strategies
@@ -122,22 +123,19 @@ contract Strategy is BaseStrategy {
      */
     function _freeFunds(uint256 _amount) internal override {
         // Unstake crvUSDGHO LP.
-        uint256 _desired_lp_amount = pool.calc_token_amount(
-            [_amount, 0],
-            false
-        );
-        uint256 _staked_tokens = IGhoToken(cvxDeposit).balanceOf(address(this));
+        uint256 _desired_lp_amount = pool.calc_withdraw_one_coin(_amount, 0);
+        uint256 _staked_tokens = gauge.balanceOf(address(this));
 
         uint256 _lp_amount = Math.min(_desired_lp_amount, _staked_tokens);
-        bool _unstaked = convex.withdraw(PID, _lp_amount);
+
+        if (_lp_amount == 0) revert ZeroLP();
+        gauge.withdraw(_lp_amount, false);
 
         // Withdraw GHO
-        uint256 _out = zap.remove_liquidity_one_coin(
-            address(pool),
+        uint256 _out = pool.remove_liquidity_one_coin(
             _lp_amount,
-            0,
-            0,
-            address(this)
+            int128(0),
+            0 // TODO: add slippage
         );
     }
 
@@ -169,6 +167,7 @@ contract Strategy is BaseStrategy {
         returns (uint256 _totalAssets)
     {
         if (!TokenizedStrategy.isShutdown()) {
+            // Claim CRV rewards
             minter.mint(address(gauge));
 
             uint256 dx = IERC20(crv).balanceOf(address(this));
