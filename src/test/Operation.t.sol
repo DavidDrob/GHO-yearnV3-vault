@@ -38,6 +38,25 @@ contract OperationTest is Test, Setup {
         assertGt(gauge.balanceOf(address(strategy)), 0);
     }
 
+    function test_withdraw_partially() public {
+        uint256 _amount = 200e18;
+
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+        uint256 shares = strategy.balanceOf(user);
+        assertGt(shares, 0);
+
+        skip(5 days);
+
+        uint256 maxLoss = 10_000; // 100%
+        uint256 toWithdraw = (shares * 2_000) / 10_000;
+
+        vm.startPrank(user);
+        strategy.withdraw(toWithdraw, user, user, maxLoss);
+        vm.stopPrank();
+
+        assertApproxEqRel(strategy.balanceOf(user), (shares * 8_000) / 10_000, 0.05e18);
+    }
+
     // TODO: fuzz maxLoss
     function test_withdraw_all() public {
         uint256 _amount = 200e18;
@@ -54,6 +73,7 @@ contract OperationTest is Test, Setup {
         strategy.withdraw(shares, user, user, maxLoss);
 
         assertEq(strategy.balanceOf(user), 0);
+        assertApproxEqRel(asset.balanceOf(user), _amount, 0.05e18);
     }
 
     function test_redeem_all() public {
@@ -69,6 +89,7 @@ contract OperationTest is Test, Setup {
         strategy.redeem(_amount, user, user);
 
         assertEq(strategy.balanceOf(user), 0);
+        assertApproxEqRel(asset.balanceOf(user), _amount, 0.05e18);
     }
 
     function test_claim_crv() public {
@@ -85,13 +106,17 @@ contract OperationTest is Test, Setup {
     }
 
     function test_is_profitable() public {
-        uint256 _amount = 200e18;
+        uint256 _amount = 20_000e18;
 
         vm.prank(user);
         mintAndDepositIntoStrategy(strategy, user, _amount);
         assertGt(strategy.balanceOf(user), 0);
 
-        skip(10 days);
+        skip(5 days);
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        assertGt(profit, loss);
 
         vm.prank(user);
         strategy.redeem(_amount, user, user);
