@@ -106,20 +106,21 @@ contract OperationTest is Test, Setup {
     }
 
     function test_is_profitable() public {
-        uint256 _amount = 20_000e18;
+        uint256 _amount = 200_000e18;
 
         vm.prank(user);
         mintAndDepositIntoStrategy(strategy, user, _amount);
         assertGt(strategy.balanceOf(user), 0);
 
-        skip(5 days);
+        skip(30 days);
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
 
         assertGt(profit, loss);
 
-        vm.prank(user);
-        strategy.redeem(_amount, user, user);
+        vm.startPrank(user);
+        strategy.redeem(strategy.balanceOf(user), user, user);
+        vm.stopPrank();
 
         assertGt(asset.balanceOf(user), _amount);
     }
