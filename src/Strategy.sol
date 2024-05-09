@@ -69,7 +69,7 @@ contract Strategy is BaseStrategy {
         string memory _name
     ) BaseStrategy(_asset, _name) {
         IGhoToken(gho).approve(address(pool), type(uint256).max);
-        ICurvePool(pool).approve(address(gauge), type(uint256).max);
+        ICurvePool(pool).approve(address(convex), type(uint256).max);
         IERC20(crv).approve(address(rewardsPool), type(uint256).max);
         IERC20(crvusd).approve(address(pool), type(uint256).max);
     }
@@ -96,8 +96,8 @@ contract Strategy is BaseStrategy {
 
         uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
 
-        // Deposit crvUSDGHO LP into gauge.
-        gauge.deposit(_lpAmount);
+        // Deposit crvUSDGHO LP into convex and stake.
+        convex.deposit(PID, _lpAmount, true);
     }
 
     /**
@@ -124,12 +124,12 @@ contract Strategy is BaseStrategy {
     function _freeFunds(uint256 _amount) internal override {
         // Unstake crvUSDGHO LP.
         uint256 _desired_lp_amount = pool.calc_withdraw_one_coin(_amount, 0);
-        uint256 _staked_tokens = gauge.balanceOf(address(this));
+        uint256 _staked_tokens = convexRewards.balanceOf(address(this));
 
         uint256 _lp_amount = Math.min(_desired_lp_amount, _staked_tokens);
 
         if (_lp_amount == 0) revert ZeroLP();
-        gauge.withdraw(_lp_amount, false);
+        convexRewards.withdrawAndUnwrap(_lp_amount, false);
 
         // Withdraw GHO
         uint256 _out = pool.remove_liquidity_one_coin(
@@ -168,10 +168,10 @@ contract Strategy is BaseStrategy {
     {
         if (!TokenizedStrategy.isShutdown()) {
             // Claim CRV rewards
-            minter.mint(address(gauge));
-
+            bool _claimedSucessfully = convexRewards.getReward();
+            if (!_claimedSucessfully) revert NoCRVMinted();
+            
             uint256 dx = IERC20(crv).balanceOf(address(this));
-            if (dx == 0) revert NoCRVMinted();
 
             uint256 min_dy = 0; // TODO: use get_dy - slippage
             uint256 _amount = rewardsPool.exchange(2, 0, dx, min_dy);
@@ -181,20 +181,20 @@ contract Strategy is BaseStrategy {
 
             uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
 
-            // Deposit crvUSDGHO LP into gauge.
-            gauge.deposit(_lpAmount);
+            // Deposit crvUSDGHO LP into convex and stake.
+            convex.deposit(PID, _lpAmount, true);
         }
 
-        uint256 _gaugeBalance = gauge.balanceOf(address(this));
+        uint256 _convexLPBalance = convexRewards.balanceOf(address(this));
         uint256 _ghoBalance = IERC20(gho).balanceOf(address(this));
 
         // `calc_withdraw_one_coin` reverts when `_burn_amount` is zero
-        if (_gaugeBalance == 0) {
+        if (_convexLPBalance == 0) {
             _totalAssets = _ghoBalance;
         }
         else {
             _totalAssets = 
-                pool.calc_withdraw_one_coin(_gaugeBalance, int128(0)) + 
+                pool.calc_withdraw_one_coin(_convexLPBalance, int128(0)) + 
                 IERC20(gho).balanceOf(address(this));
         }
     }
