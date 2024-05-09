@@ -5,17 +5,20 @@ import "forge-std/console.sol";
 import "forge-std/Test.sol";
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/ICurveGauge.sol";
 import "../interfaces/ICurvePool.sol";
+import "../interfaces/convex/IConvex.sol";
+import "../interfaces/convex/IConvexRewards.sol";
 
 contract OperationTest is Test, Setup {
-    ICurveGauge gauge;
     ICurvePool pool;
+    IConvex convex;
+    IConvexRewards convexRewards;
 
     function setUp() public virtual override {
         super.setUp();
-        gauge = ICurveGauge(address(tokenAddrs["gauge-deposit"]));
         pool = ICurvePool(tokenAddrs["gho-crvUSD-pool"]);
+        convex = IConvex(tokenAddrs["convex"]);
+        convexRewards = IConvexRewards(tokenAddrs["convex-rewards"]);
     }
 
     function test_setupStrategyOK() public {
@@ -35,7 +38,7 @@ contract OperationTest is Test, Setup {
         mintAndDepositIntoStrategy(strategy, user, _amount);
 
         assertGt(strategy.balanceOf(user), 0);
-        assertGt(gauge.balanceOf(address(strategy)), 0);
+        assertGt(convexRewards.balanceOf(address(strategy)), 0);
     }
 
     function test_withdraw_partially() public {
@@ -105,14 +108,14 @@ contract OperationTest is Test, Setup {
         assertGt(profit, loss);
     }
 
-    function test_is_profitable() public {
-        uint256 _amount = 200_000e18;
+    function test_is_profitable_crv() public {
+        uint256 _amount = 20_000e18;
 
         vm.prank(user);
         mintAndDepositIntoStrategy(strategy, user, _amount);
         assertGt(strategy.balanceOf(user), 0);
 
-        skip(30 days);
+        skip(10 days);
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
 

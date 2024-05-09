@@ -153,6 +153,12 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["crvUSD"] = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
         tokenAddrs["CRV"] = 0xD533a949740bb3306d119CC777fa900bA034cd52;
         tokenAddrs[
+            "convex"
+        ] = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31;
+        tokenAddrs[
+            "convex-rewards"
+        ] = 0x5eC758f79b96AE74e7F1Ba9583009aFB3fc8eACB;
+        tokenAddrs[
             "gauge-deposit"
         ] = 0x4717C25df44e280ec5b31aCBd8C194e1eD24efe2;
         tokenAddrs[
