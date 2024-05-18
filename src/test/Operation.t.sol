@@ -278,8 +278,8 @@ contract OperationTest is Test, Setup {
         );
     }
 
-    function test_tendTrigger(uint256 _amount) public {
-        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+    function test_tendTriggerCrv() public {
+        uint256 _amount = 20_000e18;
 
         (bool trigger, ) = strategy.tendTrigger();
         assertTrue(!trigger);
@@ -305,13 +305,20 @@ contract OperationTest is Test, Setup {
         // Unlock Profits
         skip(strategy.profitMaxUnlockTime());
 
-        (trigger, ) = strategy.tendTrigger();
-        assertTrue(!trigger);
+        uint256 crvBefore = IERC20(tokenAddrs["CRV"]).balanceOf(address(strategy));
 
-        vm.prank(user);
-        strategy.redeem(_amount, user, user);
+        vm.prank(keeper);
+        vm.expectRevert(abi.encodeWithSignature("NotEnoughCVX()"));
+        strategy.tend();
 
-        (trigger, ) = strategy.tendTrigger();
-        assertTrue(!trigger);
+        airdrop(ERC20(tokenAddrs["CVX"]), address(strategy), 100e18);
+
+        vm.prank(keeper);
+        strategy.tend();
+
+        assertGt(
+            IERC20(tokenAddrs["CRV"]).balanceOf(address(strategy)),
+            crvBefore
+        );
     }
 }

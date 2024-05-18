@@ -152,6 +152,7 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["GHO"] = 0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f;
         tokenAddrs["crvUSD"] = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
         tokenAddrs["CRV"] = 0xD533a949740bb3306d119CC777fa900bA034cd52;
+        tokenAddrs["CVX"] = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
         tokenAddrs[
             "convex"
         ] = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31;
