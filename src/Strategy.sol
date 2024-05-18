@@ -19,11 +19,13 @@ import "./interfaces/IDepositZap.sol";
 import "./interfaces/IGauge.sol";
 import "./interfaces/IMinter.sol";
 import "./interfaces/ITriCryptoNG.sol";
+import "./interfaces/ICryptoSwap.sol";
 
 
 // custom errors
 error NoCRVMinted();
 error ZeroLP();
+error NotEnoughCVX();
 
 /**
  * The `TokenizedStrategy` variable can be used to retrieve the strategies
@@ -46,6 +48,7 @@ contract Strategy is BaseStrategy {
     address public constant crv = 0xD533a949740bb3306d119CC777fa900bA034cd52;
     address public constant cvxDeposit =
         0x453CAFf58C6a1E01f7E19Dbf5Fa8382ca8cA3Ec1;
+    address public constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     ICurvePool public constant pool =
         ICurvePool(0x635EF0056A597D13863B73825CcA297236578595);
@@ -61,6 +64,10 @@ contract Strategy is BaseStrategy {
         IGauge(0x4717C25df44e280ec5b31aCBd8C194e1eD24efe2);
     IMinter public constant minter =
         IMinter(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
+    IERC20 public constant convexToken =
+        IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+    ICryptoSwap public constant cvxEthPool =
+        ICryptoSwap(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4);
 
     uint256 public constant PID = 335;
 
@@ -72,6 +79,8 @@ contract Strategy is BaseStrategy {
         ICurvePool(pool).approve(address(convex), type(uint256).max);
         IERC20(crv).approve(address(rewardsPool), type(uint256).max);
         IERC20(crvusd).approve(address(pool), type(uint256).max);
+        convexToken.approve(address(cvxEthPool), type(uint256).max);
+        IERC20(weth).approve(address(rewardsPool), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -226,8 +235,16 @@ contract Strategy is BaseStrategy {
      *
      * @param _totalIdle The current amount of idle funds that are available to deploy.
      *
-    function _tend(uint256 _totalIdle) internal override {}
     */
+    function _tend(uint256 _totalIdle) internal override {
+        if (!_tendTrigger()) revert NotEnoughCVX();
+
+	    uint256 cvxBalance = convexToken.balanceOf(address(this));
+
+        // TODO: add slippage
+        uint256 ethAmount = cvxEthPool.exchange(1, 0, cvxBalance, 0);
+        rewardsPool.exchange(1, 2, ethAmount, 0);
+    }
 
     /**
      * @dev Optional trigger to override if tend() will be used by the strategy.
@@ -235,8 +252,18 @@ contract Strategy is BaseStrategy {
      *
      * @return . Should return true if tend() should be called by keeper or false if not.
      *
-    function _tendTrigger() internal view override returns (bool) {}
     */
+    function _tendTrigger() internal view override returns (bool) {
+	    uint256 cvxBalance = convexToken.balanceOf(address(this));
+
+        if (cvxBalance == 0) return false;
+	
+        // CVX -> CRV via WETH
+        uint256 ethAmount = cvxEthPool.get_dy(1, 0, cvxBalance);
+        uint256 crvOut = rewardsPool.get_dy(1, 2, ethAmount);
+
+        return crvOut > 30e18;
+    }
 
     /**
      * @notice Gets the max amount of `asset` that an address can deposit.
