@@ -14,5 +14,7 @@ interface IRewardPool4626 is IERC4626 {
 
     function rewards(address) external returns (uint256);
 
-    function getReward() external;
+    function getReward() external returns(bool);
+
+    function maxWithdraw(address owner) external view returns (uint256);
 }

@@ -72,7 +72,7 @@ contract Setup is ExtendedTest, IEvents {
     function setUpStrategy() public returns (address) {
         // we save the strategy as a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = IStrategyInterface(
-            address(new Strategy(address(asset), "Tokenized Strategy"))
+            address(new BalancerStrategy(address(asset), "Tokenized Strategy"))
         );
 
         // set keeper
@@ -153,6 +153,7 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["crvUSD"] = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
         tokenAddrs["CRV"] = 0xD533a949740bb3306d119CC777fa900bA034cd52;
         tokenAddrs["CVX"] = 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B;
+        tokenAddrs["BAL"] = 0xba100000625a3754423978a60c9317c58a424e3D;
         tokenAddrs[
             "convex"
         ] = 0xF403C135812408BFbE8713b5A23a04b3D48AAE31;
