@@ -38,6 +38,9 @@ contract BalancerStrategy is BaseStrategy {
 
     address public constant GHO = 0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f;
     address public constant BAL_LP = 0x8353157092ED8Be69a9DF8F95af097bbF33Cb2aF;
+    address public constant BAL = 0xba100000625a3754423978a60c9317c58a424e3D;
+    address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant AURA = 0xC0c293ce456fF0ED870ADd98a0828Dd4d2903DBF;
 
     address public constant BAL_QUERY =
         0xE39B5e3B6D74016b2F6A9673D7d7493B6DF549d5;
@@ -60,6 +63,8 @@ contract BalancerStrategy is BaseStrategy {
         string memory _name
     ) BaseStrategy(_asset, _name) {
         IGhoToken(GHO).approve(address(balancerVault), type(uint256).max);
+        IERC20(BAL).approve(address(balancerVault), type(uint256).max);
+        IERC20(USDC).approve(address(balancerVault), type(uint256).max);
         IERC20(BAL_LP).approve(address(AURA_POOL), type(uint256).max);
         // IERC20(BAL_LP).approve(address(AURA_WRAPPER), type(uint256).max);
     }
@@ -120,11 +125,6 @@ contract BalancerStrategy is BaseStrategy {
 
         // Stake LP
         uint256 rewards_out = AURA_POOL.deposit(_out, address(this));
-
-        console.log(rewards_out);
-        console.log(AURA_POOL.balanceOf(address(this)));
-        console.log(AURA_POOL.rewardPerToken());
-        console.log(AURA_POOL.rewardRate());
     }
 
     /**
@@ -234,11 +234,155 @@ contract BalancerStrategy is BaseStrategy {
         //      _totalAssets = aToken.balanceOf(address(this)) + asset.balanceOf(address(this));
         //
         if (!TokenizedStrategy.isShutdown()) {
-            // claim aura rewards from 0xBDD6984C3179B099E9D383ee2F44F3A57764BF7d
-            console.log(AURA_POOL.rewards(address(this)));
-            AURA_POOL.processIdleRewards();
+            console.log("harvesting");
+            console.log(IERC20(BAL).balanceOf(address(this)));
+            bool _claimedSucessfully = AURA_POOL.getReward();
+
+            console.log(_claimedSucessfully);
+
+            console.log("BAL");
+            uint256 balAmount = IERC20(BAL).balanceOf(address(this));
+            console.log(balAmount);
+
+            console.log("AURA");
+            uint256 auraAmount = IERC20(AURA).balanceOf(address(this));
+            console.log(auraAmount);
+
+
+            // we are doing two single swaps
+            // because there are computations which need to be done off-chain when using batch swaps
+            uint256 _usdcOut = _swapBalForUSDC(balAmount);
+            uint256 _ghoOut = _swapUSDCForGHO(_usdcOut);
+            uint256 _auraLpAmount = _depositIntoPool(_ghoOut);
+
+
+            console.log("AURA LP");
+            console.log(_auraLpAmount);
+
+
+            // use unchecked (?)
+            uint256 _balAmountTotal =
+                AURA_POOL.maxWithdraw(address(this)) +
+                IERC20(BAL_LP).balanceOf(address(this));
+
+
+            console.log("total LP AMOUNT");
+            console.log(_balAmountTotal);
+
+
+            IVault.FundManagement memory funds = IVault.FundManagement(
+                address(this),
+                false,
+                payable(address(this)),
+                false
+            );
+
+            IVault.SingleSwap memory querySwap = IVault.SingleSwap(
+                poolId,
+                IVault.SwapKind.GIVEN_OUT,
+                IAsset(BAL_LP),
+                IAsset(GHO),
+                _balAmountTotal,
+                ""
+            );
+
+            uint256 ghoAmount = IBalancerQueries(BAL_QUERY).querySwap(
+                querySwap,
+                funds
+            );
+
+            _totalAssets += ghoAmount; // add AURA rewards
+            // tend AURA rewards for GHO
         }
     }
+
+
+    function _swapBalForUSDC(uint256 _amount) internal returns (uint256) {
+            IVault.FundManagement memory funds = IVault.FundManagement(
+                address(this),
+                false,
+                payable(address(this)),
+                false
+            );
+
+            bytes32 balWethPoolId =
+                bytes32(
+                    0x9c08c7a7a89cfd671c79eacdc6f07c1996277ed5000200000000000000000025
+                );
+            IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
+                balWethPoolId,
+                IVault.SwapKind.GIVEN_IN,
+                IAsset(BAL),
+                IAsset(USDC),
+                _amount,
+                ""
+            );
+
+            return balancerVault.swap(
+                singleSwap,
+                funds,
+                0,
+                block.timestamp
+            );
+    }
+
+    function _swapUSDCForGHO(uint256 _amount) internal returns (uint256) {
+             IVault.FundManagement memory funds = IVault.FundManagement(
+                address(this),
+                false,
+                payable(address(this)),
+                false
+            );
+
+            bytes32 stablePool =
+                bytes32(
+                    0x8353157092ed8be69a9df8f95af097bbf33cb2af0000000000000000000005d9 
+            );
+            IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
+                stablePool,
+                IVault.SwapKind.GIVEN_IN,
+                IAsset(USDC),
+                IAsset(GHO),
+                _amount,
+                ""
+            );
+
+            return balancerVault.swap(
+                singleSwap,
+                funds,
+                0,
+                block.timestamp
+            );
+   }
+
+    function _depositIntoPool(uint256 _amount) internal returns (uint256) {
+        IVault.FundManagement memory funds = IVault.FundManagement(
+            address(this),
+            false,
+            payable(address(this)),
+            false
+        );
+
+        IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
+            poolId,
+            IVault.SwapKind.GIVEN_IN,
+            IAsset(GHO),
+            IAsset(BAL_LP),
+            _amount,
+            ""
+        );
+
+        uint256 _out = balancerVault.swap(
+            singleSwap,
+            funds,
+            0,
+            block.timestamp
+        );
+
+        // Stake LP
+        return AURA_POOL.deposit(_out, address(this));
+    }
+
 
     /*//////////////////////////////////////////////////////////////
                     OPTIONAL TO OVERRIDE BY STRATEGIST

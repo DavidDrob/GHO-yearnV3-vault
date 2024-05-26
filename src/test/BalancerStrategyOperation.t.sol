@@ -28,7 +28,7 @@ contract BalancerStrategyOperationTest is Test, Setup {
     }
 
     // TODO: fuzz
-    function test_deposit() public {
+    function test_deposit_bal() public {
         uint256 _amount = 200e18;
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
@@ -59,27 +59,18 @@ contract BalancerStrategyOperationTest is Test, Setup {
         assertApproxEq(asset.balanceOf(user), 200e18, 20e18);
     }
 
-    function test_harvest() public {
-        address userTwo = makeAddr("userTwo");
-        vm.prank(userTwo);
-        mintAndDepositIntoStrategy(strategy, userTwo, 5_000e18);
-
+    function test_harvest_bal() public {
         uint256 _amount = 20_000e18;
 
-        vm.prank(user);
         mintAndDepositIntoStrategy(strategy, user, _amount);
-        // console.log(AURA_POOL.rewardTokens());
-        // console.log(AURA_POOL.rewards(address(this)));
-        skip(15 days);
+
+        skip(10 days);
 
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
 
-        console.log(profit);
-        console.log(loss);
+        assertGt(profit, loss);
 
-        // TODO: check convex balance
-        assertTrue(false);
     }
 
     function test_is_profitable() public {
