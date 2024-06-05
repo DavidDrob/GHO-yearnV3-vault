@@ -103,7 +103,10 @@ contract Strategy is BaseStrategy {
         uint256[] memory _amounts = new uint256[](2);
         _amounts[0] = _amount;
 
-        uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
+        uint256 _expectedLpAmount = pool.calc_token_amount(_amounts, true);
+        uint256 _minAmountOut = (_expectedLpAmount * 99) / 100;
+
+        uint256 _lpAmount = pool.add_liquidity(_amounts, _minAmountOut);
 
         // Deposit crvUSDGHO LP into convex and stake.
         convex.deposit(PID, _lpAmount, true);
@@ -132,7 +135,13 @@ contract Strategy is BaseStrategy {
      */
     function _freeFunds(uint256 _amount) internal override {
         // Unstake crvUSDGHO LP.
-        uint256 _desired_lp_amount = pool.calc_withdraw_one_coin(_amount, 0);
+        uint256[] memory _amounts = new uint256[](2);
+        _amounts[0] = _amount;
+        uint256 _desired_lp_amount = pool.calc_token_amount(
+            _amounts,
+            false
+        );
+
         uint256 _staked_tokens = convexRewards.balanceOf(address(this));
 
         uint256 _lp_amount = Math.min(_desired_lp_amount, _staked_tokens);
@@ -140,11 +149,13 @@ contract Strategy is BaseStrategy {
         if (_lp_amount == 0) revert ZeroLP();
         convexRewards.withdrawAndUnwrap(_lp_amount, false);
 
+        uint256 _minAmountOut = (_amount * 99) / 100;
+
         // Withdraw GHO
         uint256 _out = pool.remove_liquidity_one_coin(
             _lp_amount,
             int128(0),
-            0 // TODO: add slippage
+            _minAmountOut
         );
     }
 
@@ -182,13 +193,16 @@ contract Strategy is BaseStrategy {
             
             uint256 dx = IERC20(crv).balanceOf(address(this));
 
-            uint256 min_dy = 0; // TODO: use get_dy - slippage
+            uint256 min_dy = (rewardsPool.get_dy(2, 0, dx) * 99) / 100;
             uint256 _amount = rewardsPool.exchange(2, 0, dx, min_dy);
 
             uint256[] memory _amounts = new uint256[](2);
             _amounts[1] = _amount;
 
-            uint256 _lpAmount = pool.add_liquidity(_amounts, 0); // TODO: add slippage check
+            uint256 _expectedLpAmount = pool.calc_token_amount(_amounts, true);
+            uint256 _minAmountOut = (_expectedLpAmount * 99) / 100;
+
+            uint256 _lpAmount = pool.add_liquidity(_amounts, _minAmountOut);
 
             // Deposit crvUSDGHO LP into convex and stake.
             convex.deposit(PID, _lpAmount, true);
@@ -241,8 +255,8 @@ contract Strategy is BaseStrategy {
 
 	    uint256 cvxBalance = convexToken.balanceOf(address(this));
 
-        // TODO: add slippage
-        uint256 ethAmount = cvxEthPool.exchange(1, 0, cvxBalance, 0);
+        uint256 _minAmount = (cvxEthPool.get_dy(1, 0, cvxBalance) * 99) / 100;
+        uint256 ethAmount = cvxEthPool.exchange(1, 0, cvxBalance, _minAmount);
         rewardsPool.exchange(1, 2, ethAmount, 0);
     }
 
