@@ -40,6 +40,8 @@ contract BalancerStrategy is BaseStrategy {
     address public constant BAL_LP = 0x8353157092ED8Be69a9DF8F95af097bbF33Cb2aF;
     address public constant BAL = 0xba100000625a3754423978a60c9317c58a424e3D;
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant AURA = 0xC0c293ce456fF0ED870ADd98a0828Dd4d2903DBF;
 
     address public constant BAL_QUERY =
@@ -65,6 +67,15 @@ contract BalancerStrategy is BaseStrategy {
         IGhoToken(GHO).approve(address(balancerVault), type(uint256).max);
         IERC20(BAL).approve(address(balancerVault), type(uint256).max);
         IERC20(USDC).approve(address(balancerVault), type(uint256).max);
+        IERC20(WETH).approve(address(balancerVault), type(uint256).max);
+
+        /*
+        IERC20(USDT).approve(address(balancerVault), 0);
+        IERC20(USDT).approve(address(balancerVault), type(uint256).max);
+        */
+
+        ERC20(USDT).safeIncreaseAllowance(address(balancerVault), type(uint256).max);
+
         IERC20(BAL_LP).approve(address(AURA_POOL), type(uint256).max);
         // IERC20(BAL_LP).approve(address(AURA_WRAPPER), type(uint256).max);
     }
@@ -235,6 +246,10 @@ contract BalancerStrategy is BaseStrategy {
         //
         if (!TokenizedStrategy.isShutdown()) {
             console.log("harvesting");
+
+            console.log("AURA LP before");
+            console.log(AURA_POOL.balanceOf(address(this)));
+
             console.log(IERC20(BAL).balanceOf(address(this)));
             bool _claimedSucessfully = AURA_POOL.getReward();
 
@@ -250,17 +265,47 @@ contract BalancerStrategy is BaseStrategy {
 
 
             // we are doing two single swaps
-            // because there are computations which need to be done off-chain when using batch swaps
-            uint256 _usdcOut = _swapBalForUSDC(balAmount);
-            uint256 _ghoOut = _swapUSDCForGHO(_usdcOut);
-            uint256 _auraLpAmount = _depositIntoPool(_ghoOut);
+            // because for batch swaps we would need to compute the slippage off-chain
+            // https://docs.balancer.fi/reference/swaps/batch-swaps.html#querybatchswap
+            uint256 _wethOut = _swapBalForWeth(balAmount);
+            uint256 _usdtOut = _swapWethForUSDT(_wethOut);
+
+            console.log("USDT OUT");
+            console.log(_usdtOut);
 
 
-            console.log("AURA LP");
-            console.log(_auraLpAmount);
+            // deposit USDT into balancer pool
 
+            IVault.FundManagement memory funds = IVault.FundManagement(
+                address(this),
+                false,
+                payable(address(this)),
+                false
+            );
 
-            // use unchecked (?)
+            IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
+                poolId,
+                IVault.SwapKind.GIVEN_IN,
+                IAsset(USDT),
+                IAsset(BAL_LP),
+                _usdtOut,
+                ""
+            );
+
+            uint256 _out = balancerVault.swap(
+                singleSwap,
+                funds,
+                0,
+                block.timestamp
+            );
+
+            // Stake LP
+            uint256 _auraLpAmount = AURA_POOL.deposit(_out, address(this));
+
+            console.log("AURA LP after");
+            console.log(AURA_POOL.balanceOf(address(this)));
+
+            // TODO: use unchecked (?)
             uint256 _balAmountTotal =
                 AURA_POOL.maxWithdraw(address(this)) +
                 IERC20(BAL_LP).balanceOf(address(this));
@@ -270,7 +315,7 @@ contract BalancerStrategy is BaseStrategy {
             console.log(_balAmountTotal);
 
 
-            IVault.FundManagement memory funds = IVault.FundManagement(
+            IVault.FundManagement memory queryFunds = IVault.FundManagement(
                 address(this),
                 false,
                 payable(address(this)),
@@ -286,18 +331,18 @@ contract BalancerStrategy is BaseStrategy {
                 ""
             );
 
-            uint256 ghoAmount = IBalancerQueries(BAL_QUERY).querySwap(
+            uint256 ghoAmountExpected = IBalancerQueries(BAL_QUERY).querySwap(
                 querySwap,
-                funds
+                queryFunds
             );
 
-            _totalAssets += ghoAmount; // add AURA rewards
+            _totalAssets += ghoAmountExpected + IGhoToken(GHO).balanceOf(address(this)); // add AURA rewards
             // tend AURA rewards for GHO
         }
     }
 
 
-    function _swapBalForUSDC(uint256 _amount) internal returns (uint256) {
+    function _swapBalForWeth(uint256 _amount) internal returns (uint256) {
             IVault.FundManagement memory funds = IVault.FundManagement(
                 address(this),
                 false,
@@ -307,13 +352,13 @@ contract BalancerStrategy is BaseStrategy {
 
             bytes32 balWethPoolId =
                 bytes32(
-                    0x9c08c7a7a89cfd671c79eacdc6f07c1996277ed5000200000000000000000025
+                    0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014
                 );
             IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
                 balWethPoolId,
                 IVault.SwapKind.GIVEN_IN,
                 IAsset(BAL),
-                IAsset(USDC),
+                IAsset(WETH),
                 _amount,
                 ""
             );
@@ -326,7 +371,7 @@ contract BalancerStrategy is BaseStrategy {
             );
     }
 
-    function _swapUSDCForGHO(uint256 _amount) internal returns (uint256) {
+    function _swapWethForUSDT(uint256 _amount) internal returns (uint256) {
              IVault.FundManagement memory funds = IVault.FundManagement(
                 address(this),
                 false,
@@ -334,15 +379,15 @@ contract BalancerStrategy is BaseStrategy {
                 false
             );
 
-            bytes32 stablePool =
+            bytes32 wethUsdtPoolId =
                 bytes32(
-                    0x8353157092ed8be69a9df8f95af097bbf33cb2af0000000000000000000005d9 
+                    0x3e5fa9518ea95c3e533eb377c001702a9aacaa32000200000000000000000052 
             );
             IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
-                stablePool,
+                wethUsdtPoolId,
                 IVault.SwapKind.GIVEN_IN,
-                IAsset(USDC),
-                IAsset(GHO),
+                IAsset(WETH),
+                IAsset(USDT),
                 _amount,
                 ""
             );
